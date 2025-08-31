@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel WhatsApp - Drogaria Dona Farma</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            display: flex;
+            background: #f0f2f5;
+        }
+
+        /* Sidebar com lista de conversas */
+        .sidebar {
+            width: 300px;
+            background: #ffffff;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            background: #00a884;
+            color: white;
+            text-align: center;
+        }
+
+        .sidebar-header h3 {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+
+        .balconista-selector {
+            padding: 16px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #f8f9fa;
+        }
+
+        .balconista-selector select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .search-box {
+            margin: 12px;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            outline: none;
+        }
+
+        .conversations-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .conversation-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .conversation-item:hover {
+            background: #f5f6f6;
+        }
+
+        .conversation-item.active {
+            background: #e7f3ff;
+            border-right: 3px solid #00a884;
+        }
+
+        .client-avatar {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            background: #00a884;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            margin-right: 12px;
+        }
+
+        .conversation-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .client-name {
+            font-weight: 500;
+            margin-bottom: 2px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .last-message {
+            font-size: 13px;
+            color: #667781;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: #667781;
+        }
+
+        /* Área principal do chat */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            background: #f0f2f5;
+            border-bottom: 1px solid #e0e0e0;
+            min-height: 60px;
+        }
+
+        .current-client-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #00a884;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            margin-right: 12px;
+        }
+
+        .current-client-info h3 {
+            font-size: 16px;
+            margin-bottom: 2px;
+        }
+
+        .current-client-info p {
+            font-size: 13px;
+            color: #667781;
+        }
+
+        .messages-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            background: #efeae2;
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 12px;
+        }
+
+        .message.sent {
+            justify-content: flex-end;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 8px 12px;
+            border-radius: 8px;
+            word-wrap: break-word;
+        }
+
+        .message-bubble.received {
+            background: #ffffff;
+            border-bottom-left-radius: 2px;
+        }
+
+        .message-bubble.sent {
+            background: #d9fdd3;
+            border-bottom-right-radius: 2px;
+        }
+
+        .message-content {
+            font-size: 14px;
+            line-height: 1.4;
+            margin-bottom: 4px;
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: #667781;
+            text-align: right;
+        }
+
+        .input-container {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: #f0f2f5;
+            border-top: 1px solid #e0e0e0;
+            gap: 8px;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 20px;
+            background: #ffffff;
+            outline: none;
+            resize: none;
+            max-height: 100px;
+        }
+
+        .send-button {
+            background: #00a884;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .send-button:hover {
+            background: #017d63;
+        }
+
+        /* Painel direito - Informações do cliente */
+        .info-panel {
+            width: 280px;
+            background: #f8f9fa;
+            border-left: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-header {
+            background: #00a884;
+            color: white;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .client-details {
+            padding: 16px;
+        }
+
+        .detail-item {
+            margin-bottom: 12px;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            color: #667781;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            font-size: 14px;
+            color: #111b21;
+            font-weight: 500;
+        }
+
+        .delivery-status {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .delivery-status.available {
+            background: #d1f2eb;
+            color: #00695c;
+        }
+
+        .delivery-status.unavailable {
+            background: #ffeaa7;
+            color: #d63031;
+        }
+
+        .actions-panel {
+            padding: 16px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .action-button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 8px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .action-primary {
+            background: #00a884;
+            color: white;
+        }
+
+        .action-primary:hover {
+            background: #017d63;
+        }
+
+        .action-secondary {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .action-secondary:hover {
+            background: #dee2e6;
+        }
+
+        .action-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .action-danger:hover {
+            background: #c82333;
+        }
+
+        .notes-section {
+            padding: 16px;
+            border-top: 1px solid #e0e0e0;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .notes-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background: white;
+        }
+
+        .note-item {
+            padding: 8px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 12px;
+        }
+
+        .note-item:last-child {
+            border-bottom: none;
+        }
+
+        .note-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 500;
+            color: #00a884;
+            margin-bottom: 4px;
+        }
+
+        .note-content {
+            color: #333;
+            line-height: 1.3;
+        }
+
+        .notes-textarea {
+            width: 100%;
+            min-height: 60px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            resize: vertical;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        .save-note-btn {
+            width: 100%;
+            padding: 8px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .save-note-btn:hover {
+            background: #0056b3;
+        }
+
+        .save-note-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Estado vazio */
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #667781;
+        }
+
+        .empty-state i {
+            font-size: 80px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            max-width: 400px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #667781;
+        }
+
+        /* Notificação */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #00a884;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            z-index: 2000;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            background: #dc3545;
+        }
+
+        .notification.success {
+            background: #28a745;
+        }
+
+        /* Responsividade básica */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: absolute;
+                left: 0;
+                height: 100%;
+                z-index: 100;
+                transform: translateX(-100%);
+                transition: transform 0.3s;
+            }
+
+            .sidebar.show {
+                transform: translateX(0);
+            }
+
+            .info-panel {
+                display: none;
+            }
+
+            .chat-header {
+                padding-left: 50px;
+                position: relative;
+            }
+
+            .mobile-menu {
+                position: absolute;
+                left: 16px;
+                background: none;
+                border: none;
+                font-size: 18px;
+                cursor: pointer;
+            }
+        }
+
+        .mobile-menu {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- SIDEBAR -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3>Painel WhatsApp</h3>
+            <p>Drogaria Dona Farma</p>
+        </div>
+
+        <div class="balconista-selector">
+            <select id="balconistaSelect">
+                <option value="">Selecione o balconista</option>
+                <option value="andrea">Andrea</option>
+                <option value="cassiano">Cassiano</option>
+            </select>
+        </div>
+
+        <input type="text" class="search-box" placeholder="Buscar conversas..." id="searchBox">
+
+        <div class="conversations-list" id="conversationsList">
+            <!-- Conversas aparecerão aqui -->
+        </div>
+    </div>
+
+    <!-- CHAT CONTAINER -->
+    <div class="chat-container">
+        <!-- Estado vazio -->
+        <div class="empty-state" id="emptyState">
+            <i class="fab fa-whatsapp"></i>
+            <h3>WhatsApp Painel</h3>
+            <p>Selecione um balconista e uma conversa para começar</p>
+        </div>
+
+        <!-- Header do chat -->
+        <div class="chat-header" id="chatHeader" style="display: none;">
+            <button class="mobile-menu" id="mobileMenuBtn">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="current-client-avatar" id="currentClientAvatar"></div>
+            <div class="current-client-info">
+                <h3 id="currentClientName"></h3>
+                <p id="currentClientStatus"></p>
+            </div>
+        </div>
+
+        <!-- Mensagens -->
+        <div class="messages-container" id="messagesContainer" style="display: none;">
+            <!-- Mensagens aparecerão aqui -->
+        </div>
+
+        <!-- Input -->
+        <div class="input-container" id="inputContainer" style="display: none;">
+            <textarea class="message-input" id="messageInput" placeholder="Digite uma mensagem" rows="1"></textarea>
+            <button class="send-button" id="sendButton">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- PAINEL LATERAL DIREITO -->
+    <div class="info-panel" id="infoPanel">
+        <div class="info-header">
+            <h3>Informações do Cliente</h3>
+        </div>
+
+        <div class="client-details" id="clientDetails">
+            <div class="detail-item">
+                <div class="detail-label">Nome</div>
+                <div class="detail-value" id="infoClientName">-</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="detail-label">Telefone</div>
+                <div class="detail-value" id="infoClientPhone">-</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="detail-label">Endereço</div>
+                <div class="detail-value" id="infoClientAddress">-</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="detail-label">Distância</div>
+                <div class="detail-value" id="infoClientDistance">-</div>
+            </div>
+
+            <div class="detail-item">
+                <div class="detail-label">Status Entrega</div>
+                <div class="delivery-status" id="infoDeliveryStatus">
+                    <span>-</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="notes-section">
+            <div class="detail-label">Histórico de Notas</div>
+            <div class="notes-list" id="notesList">
+                <!-- Notas aparecerão aqui -->
+            </div>
+            
+            <div class="detail-label">Nova Nota</div>
+            <textarea class="notes-textarea" id="clientNotes" placeholder="Adicione uma nota sobre este cliente..."></textarea>
+            <button class="save-note-btn" id="saveNoteBtn">Salvar Nota</button>
+        </div>
+
+        <div class="actions-panel">
+            <button class="action-button action-secondary" id="transferButton">
+                <i class="fas fa-exchange-alt"></i> Transferir
+            </button>
+            <button class="action-button action-danger" id="endChatButton">
+                <i class="fas fa-times"></i> Finalizar Atendimento
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Modal</h3>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div id="modalBody">
+                <!-- Conteúdo do modal -->
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTIFICAÇÃO -->
+    <div class="notification" id="notification">
+        <div id="notificationText"></div>
+    </div>
+
+    <script>
+        class WhatsAppPanel {
+            constructor() {
+                this.socket = io();
+                this.currentClientNumber = null;
+                this.currentBalconistaId = null;
+                this.currentBalconistaNome = null;
+                this.conversations = new Map();
+                this.clientNotes = new Map();
+                
+                this.init();
+            }
+
+            init() {
+                this.setupSocketEvents();
+                this.setupUIEvents();
+            }
+
+            setupUIEvents() {
+                // Seleção de balconista
+                document.getElementById('balconistaSelect').addEventListener('change', (e) => {
+                    if (e.target.value) {
+                        this.loginBalconista(e.target.value);
+                    }
+                });
+
+                // Input de mensagem
+                const messageInput = document.getElementById('messageInput');
+                const sendButton = document.getElementById('sendButton');
+
+                if (messageInput) {
+                    messageInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            this.sendMessage();
+                        }
+                    });
+
+                    messageInput.addEventListener('input', () => {
+                        this.autoResizeTextarea(messageInput);
+                    });
+                }
+
+                if (sendButton) {
+                    sendButton.addEventListener('click', () => this.sendMessage());
+                }
+
+                // Busca
+                document.getElementById('searchBox').addEventListener('input', (e) => {
+                    this.filterConversations(e.target.value);
+                });
+
+                // Botões de ação
+                document.getElementById('endChatButton').addEventListener('click', () => {
+                    this.endCurrentChat();
+                });
+
+                document.getElementById('transferButton').addEventListener('click', () => {
+                    this.showTransferModal();
+                });
+
+                document.getElementById('saveNoteBtn').addEventListener('click', () => {
+                    this.saveClientNote();
+                });
+
+                // Modal
+                document.getElementById('modalClose').addEventListener('click', () => {
+                    this.hideModal();
+                });
+
+                // Menu mobile
+                document.getElementById('mobileMenuBtn').addEventListener('click', () => {
+                    this.toggleSidebar();
+                });
+            }
+
+            setupSocketEvents() {
+                this.socket.on('connect', () => {
+                    console.log('Conectado ao servidor');
+                });
+
+                this.socket.on('balconista_logado', (data) => {
+                    console.log('Login realizado:', data);
+                    this.currentBalconistaId = data.balconistaId;
+                    this.currentBalconistaNome = data.nome;
+                    this.loadClientList(data.clientesAtivos || []);
+                    this.showNotification(`Bem-vindo(a), ${data.nome}!`, 'success');
+                });
+
+                this.socket.on('erro_login', (data) => {
+                    this.showNotification('Erro no login: ' + data.erro, 'error');
+                });
+
+                this.socket.on('novo_atendimento', (data) => {
+                    console.log('Novo atendimento:', data);
+                    this.addOrUpdateConversation(data);
+                    this.showNotification(`Novo cliente: ${data.cliente.nome || 'Cliente'}`, 'success');
+                });
+
+                this.socket.on('mensagem_cliente', (data) => {
+                    console.log('Nova mensagem:', data);
+                    this.addMessage(data.numero, data.mensagem, 'cliente');
+                    this.updateConversationPreview(data.numero, data.mensagem);
+                    
+                    if (this.currentClientNumber === data.numero) {
+                        this.scrollToBottom();
+                    } else {
+                        const clienteNome = data.cliente?.nome || 'Cliente';
+                        this.showNotification(`${clienteNome}: ${data.mensagem.substring(0, 50)}...`);
+                    }
+                });
+
+                this.socket.on('mensagem_enviada', (data) => {
+                    console.log('Mensagem enviada confirmada:', data);
+                });
+
+                this.socket.on('atendimento_finalizado', (data) => {
+                    console.log('Atendimento finalizado:', data);
+                    this.removeConversation(data.numero);
+                    if (this.currentClientNumber === data.numero) {
+                        this.showEmptyState();
+                    }
+                    this.showNotification(`Atendimento finalizado: ${data.cliente?.nome || 'Cliente'}`, 'success');
+                });
+
+                this.socket.on('transferencia_realizada', (data) => {
+                    this.showNotification(`Cliente transferido para ${data.paraBalconista}`, 'success');
+                    this.removeConversation(data.numero);
+                    if (this.currentClientNumber === data.numero) {
+                        this.showEmptyState();
+                    }
+                    this.hideModal();
+                });
+
+                this.socket.on('nota_salva', (data) => {
+                    this.showNotification('Nota salva com sucesso!', 'success');
+                    document.getElementById('clientNotes').value = '';
+                    this.loadClientNotes(data.numero);
+                });
+
+                this.socket.on('notas_cliente', (data) => {
+                    this.displayClientNotes(data.notas);
+                });
+
+                this.socket.on('erro', (data) => {
+                    this.showNotification(data.mensagem, 'error');
+                });
+            }
+
+            loginBalconista(balconistaId) {
+                this.socket.emit('balconista_login', { balconistaId });
+            }
+
+            loadClientList(clientes) {
+                const conversationsList = document.getElementById('conversationsList');
+                conversationsList.innerHTML = '';
+                
+                clientes.forEach(cliente => {
+                    this.addOrUpdateConversation({
+                        numero: cliente.numero || cliente.telefone,
+                        cliente: cliente,
+                        conversa: cliente.conversa || []
+                    });
+                });
+            }
+
+            addOrUpdateConversation(data) {
+                const { numero, cliente, conversa } = data;
+                this.conversations.set(numero, { cliente, conversa: conversa || [] });
+                
+                let conversationItem = document.getElementById(`conv-${numero}`);
+                
+                if (!conversationItem) {
+                    conversationItem = this.createConversationItem(numero, cliente);
+                    document.getElementById('conversationsList').appendChild(conversationItem);
+                }
+                
+                this.updateConversationItem(conversationItem, cliente, conversa);
+            }
+
+            createConversationItem(numero, cliente) {
+                const item = document.createElement('div');
+                item.className = 'conversation-item';
+                item.id = `conv-${numero}`;
+                item.addEventListener('click', () => this.selectConversation(numero));
+                
+                const lastMessage = cliente.conversa && cliente.conversa.length > 0 
+                    ? cliente.conversa[cliente.conversa.length - 1] 
+                    : null;
+                
+                item.innerHTML = `
+                    <div class="client-avatar">
+                        ${cliente.nome ? cliente.nome.charAt(0).toUpperCase() : 'C'}
+                    </div>
+                    <div class="conversation-info">
+                        <div class="client-name">
+                            <span class="name-text">${cliente.nome || 'Cliente'}</span>
+                            <span class="message-time">
+                                ${lastMessage ? this.formatTime(lastMessage.timestamp) : ''}
+                            </span>
+                        </div>
+                        <div class="last-message">
+                            ${lastMessage ? this.truncateMessage(lastMessage.conteudo) : 'Nova conversa'}
+                        </div>
+                    </div>
+                `;
+                
+                return item;
+            }
+
+            selectConversation(numero) {
+                document.querySelectorAll('.conversation-item').forEach(item => {
+                    item.classList.remove('active');
+                });
+                
+                const currentItem = document.getElementById(`conv-${numero}`);
+                if (currentItem) {
+                    currentItem.classList.add('active');
+                }
+                
+                this.currentClientNumber = numero;
+                this.loadConversation(numero);
+                this.showChatInterface();
+            }
+
+            async loadConversation(numero) {
+                try {
+                    const response = await fetch(`/api/conversas/${numero}`);
+                    const data = await response.json();
+                    
+                    if (response.ok && data.cliente) {
+                        this.conversations.set(numero, {
+                            cliente: data.cliente,
+                            conversa: data.mensagens || []
+                        });
+                        
+                        this.updateChatHeader(data.cliente);
+                        this.updateClientInfoPanel(data.cliente);
+                        this.loadMessages(data.mensagens || []);
+                        this.loadClientNotes(numero);
+                        
+                        setTimeout(() => {
+                            document.getElementById('messageInput').focus();
+                        }, 100);
+                    }
+                } catch (error) {
+                    console.error('Erro ao carregar conversa:', error);
+                    this.showNotification('Erro ao carregar conversa', 'error');
+                }
+            }
+
+            updateChatHeader(cliente) {
+                document.getElementById('currentClientName').textContent = cliente.nome || 'Cliente';
+                document.getElementById('currentClientAvatar').textContent = 
+                    cliente.nome ? cliente.nome.charAt(0).toUpperCase() : 'C';
+                document.getElementById('currentClientStatus').textContent = 
+                    cliente.endereco || cliente.telefone || 'Cliente';
+            }
+
+            updateClientInfoPanel(cliente) {
+                document.getElementById('infoClientName').textContent = cliente.nome || '-';
+                document.getElementById('infoClientPhone').textContent = cliente.telefone || '-';
+                document.getElementById('infoClientAddress').textContent = cliente.endereco || '-';
+                document.getElementById('infoClientDistance').textContent = 
+                    cliente.distancia ? `${cliente.distancia}km` : '-';
+                
+                const statusElement = document.getElementById('infoDeliveryStatus');
+                if (cliente.dentroAreaEntrega) {
+                    statusElement.className = 'delivery-status available';
+                    statusElement.innerHTML = '<span>Disponível - R$ 2,00</span>';
+                } else {
+                    statusElement.className = 'delivery-status unavailable';
+                    statusElement.innerHTML = '<span>Retirada na loja</span>';
+                }
+            }
+
+            loadMessages(mensagens) {
+                const messagesContainer = document.getElementById('messagesContainer');
+                messagesContainer.innerHTML = '';
+                
+                mensagens.forEach(mensagem => {
+                    this.addMessageToContainer(mensagem);
+                });
+                
+                this.scrollToBottom();
+            }
+
+            addMessage(numero, conteudo, remetente, timestamp = null) {
+                const conversationData = this.conversations.get(numero);
+                if (!conversationData) return;
+                
+                const mensagem = {
+                    conteudo,
+                    remetente,
+                    timestamp: timestamp || new Date().toISOString()
+                };
+                
+                conversationData.conversa.push(mensagem);
+                
+                if (this.currentClientNumber === numero) {
+                    this.addMessageToContainer(mensagem);
+                    this.scrollToBottom();
+                }
+            }
+
+            addMessageToContainer(mensagem) {
+                const messagesContainer = document.getElementById('messagesContainer');
+                const messageElement = document.createElement('div');
+                
+                const isFromBalconista = mensagem.remetente === 'balconista' || 
+                                       mensagem.balconistaId === this.currentBalconistaId;
+                
+                messageElement.className = `message ${isFromBalconista ? 'sent' : 'received'}`;
+                messageElement.innerHTML = `
+                    <div class="message-bubble ${isFromBalconista ? 'sent' : 'received'}">
+                        <div class="message-content">${this.escapeHtml(mensagem.conteudo)}</div>
+                        <div class="message-time">
+                            ${this.formatTime(mensagem.timestamp)}
+                        </div>
+                    </div>
+                `;
+                
+                messagesContainer.appendChild(messageElement);
+            }
+
+            sendMessage() {
+                const messageInput = document.getElementById('messageInput');
+                const message = messageInput.value.trim();
+                
+                if (!message || !this.currentClientNumber) return;
+                
+                this.socket.emit('enviar_mensagem_balconista', {
+                    numero: this.currentClientNumber,
+                    mensagem: message,
+                    balconistaId: this.currentBalconistaId
+                });
+                
+                this.addMessage(this.currentClientNumber, message, 'balconista');
+                this.updateConversationPreview(this.currentClientNumber, message);
+                
+                messageInput.value = '';
+                this.autoResizeTextarea(messageInput);
+                messageInput.focus();
+            }
+
+            endCurrentChat() {
+                if (!this.currentClientNumber) return;
+                
+                if (confirm('Tem certeza que deseja finalizar este atendimento?')) {
+                    this.socket.emit('finalizar_atendimento', {
+                        numero: this.currentClientNumber,
+                        balconistaId: this.currentBalconistaId
+                    });
+                }
+            }
+
+            showTransferModal() {
+                if (!this.currentClientNumber) return;
+                
+                const otherBalconistas = ['andrea', 'cassiano'].filter(id => id !== this.currentBalconistaId);
+                
+                document.getElementById('modalTitle').textContent = 'Transferir Atendimento';
+                document.getElementById('modalBody').innerHTML = `
+                    <p>Transferir atendimento para:</p>
+                    <div style="margin: 16px 0;">
+                        ${otherBalconistas.map(id => `
+                            <button class="action-button action-secondary" 
+                                    style="margin: 4px; width: 48%;" 
+                                    onclick="whatsappPanel.transferChat('${id}')">
+                                ${id.charAt(0).toUpperCase() + id.slice(1)}
+                            </button>
+                        `).join('')}
+                    </div>
+                    <textarea placeholder="Motivo da transferência (opcional)" 
+                              id="transferReason" rows="3" 
+                              style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-top: 8px;"></textarea>
+                `;
+                
+                this.showModal();
+            }
+
+            transferChat(targetBalconista) {
+                const transferReason = document.getElementById('transferReason');
+                const reason = transferReason ? transferReason.value : '';
+                
+                this.socket.emit('transferir_atendimento', {
+                    numero: this.currentClientNumber,
+                    deBalconista: this.currentBalconistaId,
+                    paraBalconista: targetBalconista,
+                    motivo: reason
+                });
+            }
+
+            saveClientNote() {
+                if (!this.currentClientNumber) return;
+                
+                const noteText = document.getElementById('clientNotes').value.trim();
+                if (!noteText) {
+                    this.showNotification('Digite uma nota antes de salvar', 'error');
+                    return;
+                }
+                
+                this.socket.emit('salvar_nota_cliente', {
+                    numero: this.currentClientNumber,
+                    nota: noteText,
+                    balconistaId: this.currentBalconistaId
+                });
+            }
+
+            loadClientNotes(numero) {
+                this.socket.emit('obter_notas_cliente', { numero });
+            }
+
+            displayClientNotes(notas) {
+                const notesList = document.getElementById('notesList');
+                notesList.innerHTML = '';
+                
+                if (!notas || notas.length === 0) {
+                    notesList.innerHTML = '<div class="note-item" style="text-align: center; color: #999;">Nenhuma nota encontrada</div>';
+                    return;
+                }
+                
+                notas.reverse().forEach(nota => {
+                    const noteElement = document.createElement('div');
+                    noteElement.className = 'note-item';
+                    noteElement.innerHTML = `
+                        <div class="note-header">
+                            <span>${nota.balconistaNome}</span>
+                            <span>${this.formatDate(nota.timestamp)}</span>
+                        </div>
+                        <div class="note-content">${this.escapeHtml(nota.texto)}</div>
+                    `;
+                    notesList.appendChild(noteElement);
+                });
+            }
+
+            updateConversationItem(item, cliente, conversa) {
+                if (!item) return;
+                
+                const nameElement = item.querySelector('.name-text');
+                const lastMessageElement = item.querySelector('.last-message');
+                const timeElement = item.querySelector('.message-time');
+                
+                if (nameElement) {
+                    nameElement.textContent = cliente.nome || 'Cliente';
+                }
+                
+                if (conversa && conversa.length > 0) {
+                    const lastMessage = conversa[conversa.length - 1];
+                    if (lastMessageElement) {
+                        lastMessageElement.textContent = this.truncateMessage(lastMessage.conteudo);
+                    }
+                    if (timeElement) {
+                        timeElement.textContent = this.formatTime(lastMessage.timestamp);
+                    }
+                }
+            }
+
+            updateConversationPreview(numero, message) {
+                const conversationItem = document.getElementById(`conv-${numero}`);
+                if (!conversationItem) return;
+                
+                const lastMessageElement = conversationItem.querySelector('.last-message');
+                const timeElement = conversationItem.querySelector('.message-time');
+                
+                if (lastMessageElement) {
+                    lastMessageElement.textContent = this.truncateMessage(message);
+                }
+                
+                if (timeElement) {
+                    timeElement.textContent = this.formatTime(new Date().toISOString());
+                }
+                
+                // Mover conversa para o topo
+                const conversationsList = document.getElementById('conversationsList');
+                conversationsList.insertBefore(conversationItem, conversationsList.firstChild);
+            }
+
+            removeConversation(numero) {
+                const conversationItem = document.getElementById(`conv-${numero}`);
+                if (conversationItem) {
+                    conversationItem.remove();
+                }
+                this.conversations.delete(numero);
+            }
+
+            showChatInterface() {
+                document.getElementById('emptyState').style.display = 'none';
+                document.getElementById('chatHeader').style.display = 'flex';
+                document.getElementById('messagesContainer').style.display = 'block';
+                document.getElementById('inputContainer').style.display = 'flex';
+            }
+
+            showEmptyState() {
+                document.getElementById('emptyState').style.display = 'flex';
+                document.getElementById('chatHeader').style.display = 'none';
+                document.getElementById('messagesContainer').style.display = 'none';
+                document.getElementById('inputContainer').style.display = 'none';
+                
+                this.currentClientNumber = null;
+            }
+
+            showModal() {
+                document.getElementById('modal').classList.add('show');
+            }
+
+            hideModal() {
+                document.getElementById('modal').classList.remove('show');
+            }
+
+            showNotification(message, type = 'info') {
+                const notification = document.getElementById('notification');
+                const notificationText = document.getElementById('notificationText');
+                
+                notificationText.textContent = message;
+                notification.className = `notification ${type}`;
+                notification.classList.add('show');
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            }
+
+            toggleSidebar() {
+                document.getElementById('sidebar').classList.toggle('show');
+            }
+
+            filterConversations(query) {
+                const conversationItems = document.querySelectorAll('.conversation-item');
+                const queryLower = query.toLowerCase();
+                
+                conversationItems.forEach(item => {
+                    const nameText = item.querySelector('.name-text');
+                    const lastMessage = item.querySelector('.last-message');
+                    
+                    const clientName = nameText ? nameText.textContent.toLowerCase() : '';
+                    const lastMessageText = lastMessage ? lastMessage.textContent.toLowerCase() : '';
+                    
+                    if (clientName.includes(queryLower) || lastMessageText.includes(queryLower)) {
+                        item.style.display = 'flex';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            }
+
+            autoResizeTextarea(textarea) {
+                textarea.style.height = 'auto';
+                textarea.style.height = Math.min(textarea.scrollHeight, 100) + 'px';
+            }
+
+            scrollToBottom() {
+                const messagesContainer = document.getElementById('messagesContainer');
+                if (messagesContainer) {
+                    setTimeout(() => {
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    }, 50);
+                }
+            }
+
+            formatTime(timestamp) {
+                try {
+                    const date = new Date(timestamp);
+                    return date.toLocaleTimeString('pt-BR', { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                } catch (error) {
+                    return '';
+                }
+            }
+
+            formatDate(timestamp) {
+                try {
+                    const date = new Date(timestamp);
+                    return date.toLocaleDateString('pt-BR', { 
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                } catch (error) {
+                    return '';
+                }
+            }
+
+            truncateMessage(message, maxLength = 35) {
+                if (!message) return '';
+                return message.length > maxLength 
+                    ? message.substring(0, maxLength) + '...' 
+                    : message;
+            }
+
+            escapeHtml(text) {
+                if (!text) return '';
+                
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                
+                return text.replace(/[&<>"']/g, (m) => map[m]);
+            }
+        }
+
+        // Inicialização
+        let whatsappPanel;
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            whatsappPanel = new WhatsAppPanel();
+            
+            // Responsividade
+            window.addEventListener('resize', () => {
+                if (window.innerWidth > 768) {
+                    document.getElementById('sidebar').classList.remove('show');
+                }
+            });
+        });
+
+        // Função global para o modal
+        function transferChat(targetBalconista) {
+            if (whatsappPanel) {
+                whatsappPanel.transferChat(targetBalconista);
+            }
+        }
+    </script>
+</body>
+</html>
